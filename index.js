@@ -30,15 +30,27 @@ const run = async () => {
         const joinedEvent = database.collection('joined_event');
 
         app.get('/users', async (req, res) => {
-            const cursor = users.find();
+            const email = req.query.email;
+            const query = {}
+            if(email) {
+                query.email = email;
+            }
+            const cursor = users.find(query);
             const result = await cursor.toArray();
             res.send(result);
         });
 
         app.post('/users', async (req, res) => {
             const user = req.body;
-            const result = await users.insertOne(user);
-            res.send(result);
+            const email = user.email;
+            const query = { email: email };
+            const existingUser = await users.findOne(query);
+            if(existingUser) {
+                res.send({message: 'User is already exists'});
+            } else {
+                const result = await users.insertOne(user);
+                res.send(result);
+            }
         })
 
 
