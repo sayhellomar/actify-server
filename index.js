@@ -1,7 +1,7 @@
 const express = require("express");
 const app = express();
-const cors = require('cors');
-require('dotenv').config();
+const cors = require("cors");
+require("dotenv").config();
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const port = process.env.PORT || 3000;
 
@@ -9,8 +9,7 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-const uri =
-    `mongodb+srv://${process.env.ACTIFY_DB_USER}:${process.env.ACTIFY_DB_PASSWORD}@cluster0.apxhxix.mongodb.net/?appName=Cluster0`;
+const uri = `mongodb+srv://${process.env.ACTIFY_DB_USER}:${process.env.ACTIFY_DB_PASSWORD}@cluster0.apxhxix.mongodb.net/?appName=Cluster0`;
 
 const client = new MongoClient(uri, {
     serverApi: {
@@ -24,15 +23,15 @@ const run = async () => {
     try {
         await client.connect();
 
-        const database = client.db('actify');
-        const users = database.collection('users');
-        const events = database.collection('events');
-        const joinedEvent = database.collection('joined_event');
+        const database = client.db("actify");
+        const users = database.collection("users");
+        const events = database.collection("events");
+        const joinedEvent = database.collection("joined_event");
 
-        app.get('/users', async (req, res) => {
+        app.get("/users", async (req, res) => {
             const email = req.query.email;
-            const query = {}
-            if(email) {
+            const query = {};
+            if (email) {
                 query.email = email;
             }
             const cursor = users.find(query);
@@ -40,33 +39,44 @@ const run = async () => {
             res.send(result);
         });
 
-        app.post('/users', async (req, res) => {
+        app.post("/users", async (req, res) => {
             const user = req.body;
             const email = user.email;
             const query = { email: email };
             const existingUser = await users.findOne(query);
-            if(existingUser) {
-                res.send({message: 'User is already exists'});
+            if (existingUser) {
+                res.send({ message: "User is already exists" });
             } else {
                 const result = await users.insertOne(user);
                 res.send(result);
             }
-        })
+        });
 
+        app.get("/upcoming-events", async (req, res) => {
+            const today = new Date();
+            const cursor = events.find({ eventDate: { $gte: today } }).sort({eventDate: 1});
+            const result = await cursor.toArray();
+            res.send(result);
+        });
 
-        await client.db('admin').command({ping: 1});
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        app.post("/events", async (req, res) => {
+            const newEvent = req.body;
+            const result = await events.insertOne(newEvent);
+            res.send(result);
+        });
+
+        await client.db("admin").command({ ping: 1 });
+        console.log(
+            "Pinged your deployment. You successfully connected to MongoDB!"
+        );
     } finally {
-
     }
-}
+};
 
 run().catch(console.dir);
 
 // actify_db_user
 // KJRUFyyxckN2JhxU
-
-
 
 app.get("/", (req, res) => {
     res.send("Actify server is running successfully!");
