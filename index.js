@@ -2,7 +2,7 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 require("dotenv").config();
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT || 3000;
 
 // Middleware
@@ -52,15 +52,26 @@ const run = async () => {
             }
         });
 
+        app.get('/event/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await events.findOne(query);
+            res.send(result);
+        })
+
         app.get("/upcoming-events", async (req, res) => {
-            const today = new Date();
-            const cursor = events.find({ eventDate: { $gte: today } }).sort({eventDate: 1});
-            const result = await cursor.toArray();
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            console.log(today);
+            const result = await events.find({eventDate: {$gte: today}}).sort({eventDate: 1}).toArray();
             res.send(result);
         });
 
         app.post("/events", async (req, res) => {
             const newEvent = req.body;
+            if(newEvent.eventDate) {
+                newEvent.eventDate = new Date(newEvent.eventDate);
+            }
             const result = await events.insertOne(newEvent);
             res.send(result);
         });
