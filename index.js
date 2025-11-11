@@ -67,6 +67,17 @@ const run = async () => {
             res.send(result);
         });
 
+        app.get('/events', async (req, res) => {
+            const email = req.query.email;
+            const query = {};
+            if(email) {
+                query.email = email;
+            }
+            const cursor = events.find(query);
+            const result = await cursor.toArray();
+            res.send(result);
+        })
+
         app.post("/events", async (req, res) => {
             const newEvent = req.body;
             if(newEvent.eventDate) {
@@ -75,6 +86,12 @@ const run = async () => {
             const result = await events.insertOne(newEvent);
             res.send(result);
         });
+
+        app.post('/joined-event', async (req, res) => {
+            const newJoinedEvent = req.body;
+            const result = await joinedEvent.insertOne(newJoinedEvent);
+            res.send(result);
+        })
 
         await client.db("admin").command({ ping: 1 });
         console.log(
