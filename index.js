@@ -62,7 +62,6 @@ const run = async () => {
         app.get("/upcoming-events", async (req, res) => {
             const now = new Date();
             const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            console.log(today);
             const result = await events.find({eventDate: {$gte: today}}).sort({eventDate: 1}).toArray();
             res.send(result);
         });
@@ -87,6 +86,45 @@ const run = async () => {
             res.send(result);
         });
 
+        app.get('/joined-event', async (req, res) => {
+            const email = req.query.email;
+
+            try {
+                const result = await joinedEvent.aggregate([
+                    {
+                        $match: {user_email: email}
+                    },
+                    {
+                        $addFields: {
+                            eventObjectId: {$toObjectId: '$eventId'}
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: 'events',
+                            localField: 'eventObjectId',
+                            foreignField: '_id',
+                            as: 'eventDetails'
+                        }
+                    },
+                    {
+                        $unwind: '$eventDetails'
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            user_email: 1,
+                            event: '$eventDetails'
+                        }
+                    }
+                ]).toArray();
+
+                res.send(result);
+            } catch(error) {
+                res.status(500).send({message: 'Error fetching joined events'})
+            }
+        });
+
         app.post('/joined-event', async (req, res) => {
             const newJoinedEvent = req.body;
             const result = await joinedEvent.insertOne(newJoinedEvent);
@@ -99,7 +137,7 @@ const run = async () => {
             const cursor = joinedEvent.find(query);
             const result = await cursor.toArray();
             res.send(result);
-        })
+        });
 
         await client.db("admin").command({ ping: 1 });
         console.log(
@@ -110,9 +148,6 @@ const run = async () => {
 };
 
 run().catch(console.dir);
-
-// actify_db_user
-// KJRUFyyxckN2JhxU
 
 app.get("/", (req, res) => {
     res.send("Actify server is running successfully!");
