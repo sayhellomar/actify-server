@@ -91,6 +91,14 @@ const run = async () => {
             const newJoinedEvent = req.body;
             const result = await joinedEvent.insertOne(newJoinedEvent);
             res.send(result);
+        });
+
+        app.get('/joined-event/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = {eventId: id}
+            const cursor = joinedEvent.find(query);
+            const result = await cursor.toArray();
+            res.send(result);
         })
 
         await client.db("admin").command({ ping: 1 });
