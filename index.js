@@ -28,6 +28,7 @@ const run = async () => {
         const events = database.collection("events");
         const joinedEvent = database.collection("joined_event");
 
+        // Users API
         app.get("/users", async (req, res) => {
             const email = req.query.email;
             const query = {};
@@ -52,89 +53,143 @@ const run = async () => {
             }
         });
 
-        app.get('/event/:id', async (req, res) => {
-            const id = req.params.id;
-            const query = { _id: new ObjectId(id) };
-            const result = await events.findOne(query);
-            res.send(result);
-        })
+        // Event API
 
-        app.get("/upcoming-events", async (req, res) => {
-            const now = new Date();
-            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const result = await events.find({eventDate: {$gte: today}}).sort({eventDate: 1}).toArray();
-            res.send(result);
-        });
-
-        app.get('/events', async (req, res) => {
+        app.get("/events", async (req, res) => {
             const email = req.query.email;
             const query = {};
-            if(email) {
+            if (email) {
                 query.email = email;
             }
             const cursor = events.find(query);
             const result = await cursor.toArray();
             res.send(result);
-        })
+        });
 
         app.post("/events", async (req, res) => {
             const newEvent = req.body;
-            if(newEvent.eventDate) {
+            if (newEvent.eventDate) {
                 newEvent.eventDate = new Date(newEvent.eventDate);
             }
             const result = await events.insertOne(newEvent);
             res.send(result);
         });
 
-        app.get('/joined-event', async (req, res) => {
+        app.patch("/events/:id", async (req, res) => {
+            const id = req.params.id;
+            const updatedEvent = req.body;
+            const filter = { _id: new ObjectId(id) };
+            const update = {
+                $set: {
+                    eventTitle: updatedEvent.eventTitle,
+                    eventDescription: updatedEvent.eventDescription,
+                    eventType: updatedEvent.eventType,
+                    eventImageUrl: updatedEvent.eventImageUrl,
+                    eventLocation: updatedEvent.eventLocation,
+                    eventDate: new Date(updatedEvent.eventDate),
+                    eventStartTime: updatedEvent.eventStartTime,
+                    eventEndTime: updatedEvent.eventEndTime,
+                    email: updatedEvent.email,
+                },
+            };
+            const result = await events.updateOne(filter, update);
+            res.send(result);
+        });
+
+        app.get("/event/:id", async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await events.findOne(query);
+            res.send(result);
+        });
+
+        app.get("/upcoming-events", async (req, res) => {
+            const now = new Date();
+            const today = new Date(
+                now.getFullYear(),
+                now.getMonth(),
+                now.getDate()
+            );
+            const result = await events
+                .find({ eventDate: { $gte: today } })
+                .sort({ eventDate: 1 })
+                .toArray();
+            res.send(result);
+        });
+
+        // Joined Event API
+        app.get("/joined-event", async (req, res) => {
             const email = req.query.email;
 
             try {
-                const result = await joinedEvent.aggregate([
-                    {
-                        $match: {user_email: email}
-                    },
-                    {
-                        $addFields: {
-                            eventObjectId: {$toObjectId: '$eventId'}
-                        }
-                    },
-                    {
-                        $lookup: {
-                            from: 'events',
-                            localField: 'eventObjectId',
-                            foreignField: '_id',
-                            as: 'eventDetails'
-                        }
-                    },
-                    {
-                        $unwind: '$eventDetails'
-                    },
-                    {
-                        $project: {
-                            _id: 1,
-                            user_email: 1,
-                            event: '$eventDetails'
-                        }
-                    }
-                ]).toArray();
+                const result = await joinedEvent
+                    .aggregate([
+                        {
+                            $match: { user_email: email },
+                        },
+                        {
+                            $addFields: {
+                                eventObjectId: { $toObjectId: "$eventId" },
+                            },
+                        },
+                        {
+                            $lookup: {
+                                from: "events",
+                                localField: "eventObjectId",
+                                foreignField: "_id",
+                                as: "eventDetails",
+                            },
+                        },
+                        {
+                            $unwind: "$eventDetails",
+                        },
+                        {
+                            $sort: { "eventDetails.eventDate": 1 },
+                        },
+                        {
+                            $project: {
+                                _id: 1,
+                                user_email: 1,
+                                event: "$eventDetails",
+                            },
+                        },
+                    ])
+                    .toArray();
 
                 res.send(result);
-            } catch(error) {
-                res.status(500).send({message: 'Error fetching joined events'})
+            } catch (error) {
+                res.status(500).send({
+                    message: "Error fetching joined events",
+                });
             }
         });
 
-        app.post('/joined-event', async (req, res) => {
+        app.post("/joined-event", async (req, res) => {
             const newJoinedEvent = req.body;
             const result = await joinedEvent.insertOne(newJoinedEvent);
             res.send(result);
         });
 
-        app.get('/joined-event/:id', async (req, res) => {
+        app.get("/joined-event/:id", async (req, res) => {
             const id = req.params.id;
-            const query = {eventId: id}
+            const query = { eventId: id };
             const cursor = joinedEvent.find(query);
+            const result = await cursor.toArray();
+            res.send(result);
+        });
+
+        app.get("/search", async (req, res) => {
+            const query = req.query.eventTitle;
+            const now = new Date();
+            const today = new Date(
+                now.getFullYear(),
+                now.getMonth(),
+                now.getDate()
+            );
+            const cursor = events.find({
+                eventTitle: { $regex: query, $options: "i" },
+                eventDate: { $gt: today }
+            }).sort({eventDate: 1});
             const result = await cursor.toArray();
             res.send(result);
         });
