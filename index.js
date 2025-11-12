@@ -180,19 +180,31 @@ const run = async () => {
 
         app.get("/search", async (req, res) => {
             const query = req.query.eventTitle;
+            const categories = req.query.eventType;
+
             const now = new Date();
             const today = new Date(
                 now.getFullYear(),
                 now.getMonth(),
                 now.getDate()
             );
-            const cursor = events.find({
-                eventTitle: { $regex: query, $options: "i" },
+
+            const filter = {
                 eventDate: { $gt: today }
-            }).sort({eventDate: 1});
-            const result = await cursor.toArray();
-            res.send(result);
-        });
+            }
+
+            if(query) {
+                filter.eventTitle = { $regex: query, $options: "i" }
+            }
+
+            if(categories) {
+                filter.eventType = { $regex: categories, $options: "i" };
+            }
+
+            const cursor = events.find(filter).sort({eventDate: 1});
+                const result = await cursor.toArray();
+                res.send(result);
+            });
 
         await client.db("admin").command({ ping: 1 });
         console.log(
