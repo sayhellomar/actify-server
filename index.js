@@ -2,12 +2,40 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 require("dotenv").config();
+const admin = require("firebase-admin");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+const decoded = Buffer.from(process.env.FIREBASE_ADMIN_KEY, "base64").toString(
+    "utf8"
+);
+const serviceAccount = JSON.parse(decoded);
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+});
+
+const verifyFirebaseToken = async (req, res, next) => {
+    if (!req.headers.authorization) {
+        return res.status(401).send({ message: "Unauthorized Access" });
+    }
+    const token = req.headers.authorization.split(" ")[1];
+    if (!token) {
+        return res.status(401).send({ message: "Unauthorized Access" });
+    }
+
+    try {
+        const userInfo = await admin.auth().verifyIdToken(token);
+        req.token_email = userInfo.email;
+        next();
+    } catch {
+        return res.status(401).send({ message: "Unauthorized Access" });
+    }
+};
 
 const uri = `mongodb+srv://${process.env.ACTIFY_DB_USER}:${process.env.ACTIFY_DB_PASSWORD}@cluster0.apxhxix.mongodb.net/?appName=Cluster0`;
 
@@ -21,7 +49,7 @@ const client = new MongoClient(uri, {
 
 const run = async () => {
     try {
-        await client.connect();
+        // await client.connect();
 
         const database = client.db("actify");
         const users = database.collection("users");
@@ -29,7 +57,7 @@ const run = async () => {
         const joinedEvent = database.collection("joined_event");
 
         // Users API
-        app.get("/users", async (req, res) => {
+        app.get("/users", verifyFirebaseToken, async (req, res) => {
             const email = req.query.email;
             const query = {};
             if (email) {
@@ -43,6 +71,7 @@ const run = async () => {
         app.post("/users", async (req, res) => {
             const user = req.body;
             const email = user.email;
+            // user.email = email;
             const query = { email: email };
             const existingUser = await users.findOne(query);
             if (existingUser) {
@@ -54,20 +83,28 @@ const run = async () => {
         });
 
         // Event API
-
-        app.get("/events", async (req, res) => {
+        app.get("/events", verifyFirebaseToken, async (req, res) => {
             const email = req.query.email;
+            const userEmail = req.token_email;
             const query = {};
             if (email) {
                 query.email = email;
+                if (email !== userEmail) {
+                    return res.status(403).send({ message: "Forbidden" });
+                }
             }
-            const cursor = events.find(query);
+            const cursor = events.find(query).sort({ eventDate: 1 });
             const result = await cursor.toArray();
             res.send(result);
         });
 
-        app.post("/events", async (req, res) => {
+        app.post("/events", verifyFirebaseToken, async (req, res) => {
             const newEvent = req.body;
+            const email = newEvent.email;
+            const userEmail = req.token_email;
+            if (email !== userEmail) {
+                return res.status(403).send({ message: "Forbidden" });
+            }
             if (newEvent.eventDate) {
                 newEvent.eventDate = new Date(newEvent.eventDate);
             }
@@ -118,8 +155,13 @@ const run = async () => {
         });
 
         // Joined Event API
-        app.get("/joined-event", async (req, res) => {
+        app.get("/joined-event", verifyFirebaseToken, async (req, res) => {
             const email = req.query.email;
+            const userEmail = req.token_email;
+
+            if (email !== userEmail) {
+                return res.status(403).send({ message: "Forbidden" });
+            }
 
             try {
                 const result = await joinedEvent
@@ -190,23 +232,23 @@ const run = async () => {
             );
 
             const filter = {
-                eventDate: { $gt: today }
+                eventDate: { $gt: today },
+            };
+
+            if (query) {
+                filter.eventTitle = { $regex: query, $options: "i" };
             }
 
-            if(query) {
-                filter.eventTitle = { $regex: query, $options: "i" }
-            }
-
-            if(categories) {
+            if (categories) {
                 filter.eventType = { $regex: categories, $options: "i" };
             }
 
-            const cursor = events.find(filter).sort({eventDate: 1});
-                const result = await cursor.toArray();
-                res.send(result);
-            });
+            const cursor = events.find(filter).sort({ eventDate: 1 });
+            const result = await cursor.toArray();
+            res.send(result);
+        });
 
-        await client.db("admin").command({ ping: 1 });
+        // await client.db("admin").command({ ping: 1 });
         console.log(
             "Pinged your deployment. You successfully connected to MongoDB!"
         );

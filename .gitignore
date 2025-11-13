@@ -1,2 +1,5 @@
 node_modules
 .env
+.vercel
+encode.js
+actify-firebase-adminsdk-key.json
